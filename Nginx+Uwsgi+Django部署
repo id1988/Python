@@ -1,0 +1,93 @@
+一、配置Nginx
+more /etc/nginx/conf.d/django.conf
+server {
+    listen 80;  #web访问端口
+    server_name localhost; # 域名或者主机
+    #pid        /var/run/nginx.pid;    #进程文件(不需要)
+    error_log  /var/log/nginx/error.log; #错误日志定义等级[ debug | info | notice | warn | error | crit ]
+    access_log /var/log/nginx/access.log main; # Nginx日志配置
+    charset utf-8; # Nginx编码
+    gzip_types text/plain application/x-javascript text/css text/javascript application/x-httpd-php application/json text/json image/jpeg i
+mage/gif image/png application/octet-stream; # 支持压缩的类型
+
+    # 指定项目路径Uwsgi
+    location / {
+        include uwsgi_params; # 导入一个Nginx模块他是用来和uWSGI进行通讯的(文件可以GitHub下载)
+        uwsgi_connect_timeout 30; # 设置连接uWSGI超时时间
+        uwsgi_pass 127.0.0.1:8000; # 指定Uwsgi的socket端口
+    }
+    # 指定静态文件路径
+    location /static {
+        alias /opt/app/MyAssets/static; #django项目的static目录
+    }
+}
+
+二、Uwsgi配置
+more /opt/app/uwsgi/uwsgi.ini(自己创建)
+[uwsgi]
+#django项目目录
+chdir=/opt/app/MyAssets
+#指定项目application
+module=MyAssets.wsgi:application
+#指定sock的文件路径（nginx使用）
+socket= :8000
+# 进程个数（processess一样效果）
+workers=2
+#指定启动时的pid文件路径
+pidfile=/opt/app/uwsgi/uwsgi.pid
+#指定ip及端口（配置nginx就不需要单独启动uwsgi需要填写）
+#http=172.16.0.4:8001
+#指定静态文件（配置nginx不需要，单独启动uwsgi加载静态文件）
+#static-map=/static=/var/www/orange_web/static
+#启动uwsgi的用户名和用户组(可以改成nginx或者其他用户)
+uid=root
+gid=root
+#启用主进程
+master=true
+# 启用线程
+enable-threads=true
+#自动移除unix Socket和pid文件当服务停止的时候
+vacuum=true
+#设置日志目录
+daemonize=/opt/app/uwsgi/uwsgi.log
+#不记录信息日志，只记录错误以及uwsgi内部消息
+disable-logging=true
+# 序列化接受的内容，如果可能的话
+thunder-lock=true
+
+
+三、Django的setting配置修改如下:
+
+more /opt/app/MyAssets/MyAssets/settings.py
+
+DEBUG = False #禁用调试模式
+
+ALLOWED_HOSTS = ["*"]  #运行所有主机，也可以设置服务器IP
+
+LANGUAGE_CODE = 'en-us'
+
+TIME_ZONE = 'Asia/Shanghai'
+
+USE_I18N = True
+
+USE_L10N = True
+
+USE_TZ = False
+
+STATIC_URL = '/static/'
+
+STATIC_ROOT=os.path.join(BASE_DIR,'/static/')
+
+STATICFILES_DIRS = [
+            os.path.join(BASE_DIR,'static')
+]
+
+四、配置url(可忽略，如果不行在配置)
+
+    from django.views import static #新增
+    from django.conf import settings #新增
+    #ulrpatterns新增如下
+    urlpatterns =[
+    url(r'^static/(?P<path>.*)$', static.serve,
+              {'document_root': settings.STATIC_ROOT}, name='static'),
+    ]
